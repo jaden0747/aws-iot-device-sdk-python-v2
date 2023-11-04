@@ -19,8 +19,8 @@ from googleapiclient.errors import HttpError
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 
-# url: https://docs.google.com/spreadsheets/d/14SgsYjN2IaDV4gInfJy9VmiMAVbX_ZBeiGAHPj5I3hY/edit#gid=0
-SPREADSHEET_ID = '14SgsYjN2IaDV4gInfJy9VmiMAVbX_ZBeiGAHPj5I3hY'
+# url: https://docs.google.com/spreadsheets/d/14WD-b9-91d_SEOITzqVZ6RqcMsAGIlTvEuNhkR7xM6w/edit#gid=0
+SPREADSHEET_ID = '14WD-b9-91d_SEOITzqVZ6RqcMsAGIlTvEuNhkR7xM6w'
 
 def initGoogleApi():
     # print cwd
