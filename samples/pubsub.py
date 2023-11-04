@@ -9,6 +9,35 @@ import time
 import json
 from utils.command_line_utils import CommandLineUtils
 
+import os
+
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+
+# url: https://docs.google.com/spreadsheets/d/14SgsYjN2IaDV4gInfJy9VmiMAVbX_ZBeiGAHPj5I3hY/edit#gid=0
+SPREADSHEET_ID = '14SgsYjN2IaDV4gInfJy9VmiMAVbX_ZBeiGAHPj5I3hY'
+
+def initGoogleApi():
+    # print cwd
+    print(os.getcwd())
+    global credentials
+    credentials = None
+    if os.path.exists('token.json'):
+        credentials = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if not credentials or not credentials.valid:
+        if credentials and credentials.expired and credentials.refresh_token:
+            credentials.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            credentials = flow.run_local_server(port=0)
+        with open('token.json', 'w') as token:
+            token.write(credentials.to_json())
+
 # This sample uses the Message Broker for AWS IoT to send and receive messages
 # through an MQTT connection. On startup, the device connects to the server,
 # subscribes to a topic, and begins publishing messages to that topic.
@@ -53,8 +82,29 @@ def on_resubscribe_complete(resubscribe_future):
 # Callback when the subscribed topic receives a message
 def on_message_received(topic, payload, dup, qos, retain, **kwargs):
     print("Received message from topic '{}': {}".format(topic, payload))
+    dataDict = json.loads(payload)
+    item_value_1 = dataDict['d']['ItemValue1']
+    item_value_2 = dataDict['d']['ItemValue2']
+    ts = dataDict['ts']
+    print('ItemValue1:', item_value_1)
+    print('ItemValue2:', item_value_2)
+    print('ts:', ts)
+    values = [
+        # ['Time','ItemValue1','ItemValue2'],
+        [ts,item_value_1,item_value_2]
+    ]
+        
     global received_count
     received_count += 1
+    try:
+        service = build("sheets", "v4", credentials=credentials)
+        sheets = service.spreadsheets()
+        range_name = f'Sheet1!A{received_count+1}:C{received_count+1}'
+        if received_count == 1:
+            sheets.values().update(spreadsheetId=SPREADSHEET_ID, range='Sheet1!A1:C1', body={"values": [['Time','ItemValue1','ItemValue2']]}, valueInputOption="USER_ENTERED").execute()
+        sheets.values().update(spreadsheetId=SPREADSHEET_ID, range=range_name, body={"values": values}, valueInputOption="USER_ENTERED").execute()
+    except HttpError as e:
+        print(e)
     if received_count == cmdData.input_count:
         received_all_event.set()
 
@@ -73,6 +123,7 @@ def on_connection_closed(connection, callback_data):
     print("Connection closed")
 
 if __name__ == '__main__':
+    initGoogleApi()
     # Create the proxy options if the data is present in cmdData
     proxy_options = None
     if cmdData.input_proxy_host is not None and cmdData.input_proxy_port != 0:
@@ -120,27 +171,6 @@ if __name__ == '__main__':
 
     subscribe_result = subscribe_future.result()
     print("Subscribed with {}".format(str(subscribe_result['qos'])))
-
-    # Publish message to server desired number of times.
-    # This step is skipped if message is blank.
-    # This step loops forever if count was set to 0.
-    if message_string:
-        if message_count == 0:
-            print("Sending messages until program killed")
-        else:
-            print("Sending {} message(s)".format(message_count))
-
-        publish_count = 1
-        while (publish_count <= message_count) or (message_count == 0):
-            message = "{} [{}]".format(message_string, publish_count)
-            print("Publishing message to topic '{}': {}".format(message_topic, message))
-            message_json = json.dumps(message)
-            mqtt_connection.publish(
-                topic=message_topic,
-                payload=message_json,
-                qos=mqtt.QoS.AT_LEAST_ONCE)
-            time.sleep(1)
-            publish_count += 1
 
     # Wait for all messages to be received.
     # This waits forever if count was set to 0.
