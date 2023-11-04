@@ -18,7 +18,6 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-
 # url: https://docs.google.com/spreadsheets/d/14WD-b9-91d_SEOITzqVZ6RqcMsAGIlTvEuNhkR7xM6w/edit#gid=0
 SPREADSHEET_ID = '14WD-b9-91d_SEOITzqVZ6RqcMsAGIlTvEuNhkR7xM6w'
 
@@ -89,24 +88,37 @@ def on_message_received(topic, payload, dup, qos, retain, **kwargs):
     print('ItemValue1:', item_value_1)
     print('ItemValue2:', item_value_2)
     print('ts:', ts)
-    values = [
+    data = [
         # ['Time','ItemValue1','ItemValue2'],
         [ts,item_value_1,item_value_2]
     ]
-        
     global received_count
     received_count += 1
-    try:
-        service = build("sheets", "v4", credentials=credentials)
-        sheets = service.spreadsheets()
-        range_name = f'Sheet1!A{received_count+1}:C{received_count+1}'
-        if received_count == 1:
-            sheets.values().update(spreadsheetId=SPREADSHEET_ID, range='Sheet1!A1:C1', body={"values": [['Time','ItemValue1','ItemValue2']]}, valueInputOption="USER_ENTERED").execute()
-        sheets.values().update(spreadsheetId=SPREADSHEET_ID, range=range_name, body={"values": values}, valueInputOption="USER_ENTERED").execute()
-    except HttpError as e:
-        print(e)
-    if received_count == cmdData.input_count:
-        received_all_event.set()
+    print('received_count:', received_count)
+    if ((received_count - 1) % 6) == 0: # update sheet every 60 seconds
+        print('write to google sheet')
+        try:
+            service = build("sheets", "v4", credentials=credentials)
+            sheets = service.spreadsheets()
+            
+            # get highest row number
+            result = sheets.values().get(spreadsheetId=SPREADSHEET_ID, range='Sheet1!A1:A').execute()
+            sheetValues = result.get('values', [])
+            currentRow = len(sheetValues)
+            print('currentRow:', currentRow)
+            
+            if currentRow == 0:
+                range_name = f'Sheet1!A{currentRow+2}:C{currentRow+2}'
+                sheets.values().update(spreadsheetId=SPREADSHEET_ID, range='Sheet1!A1:C1', body={"values": [['Time','ItemValue1','ItemValue2']]}, valueInputOption="USER_ENTERED").execute()
+                sheets.values().update(spreadsheetId=SPREADSHEET_ID, range=range_name, body={"values": data}, valueInputOption="USER_ENTERED").execute()
+            else:
+                range_name = f'Sheet1!A{currentRow+1}:C{currentRow+1}'
+                sheets.values().update(spreadsheetId=SPREADSHEET_ID, range=range_name, body={"values": data}, valueInputOption="USER_ENTERED").execute()
+                
+        except HttpError as e:
+            print(e)
+        if received_count == cmdData.input_count:
+            received_all_event.set()
 
 # Callback when the connection successfully connects
 def on_connection_success(connection, callback_data):
@@ -166,7 +178,7 @@ if __name__ == '__main__':
     print("Subscribing to topic '{}'...".format(message_topic))
     subscribe_future, packet_id = mqtt_connection.subscribe(
         topic=message_topic,
-        qos=mqtt.QoS.AT_LEAST_ONCE,
+        qos=mqtt.QoS.AT_MOST_ONCE,
         callback=on_message_received)
 
     subscribe_result = subscribe_future.result()
