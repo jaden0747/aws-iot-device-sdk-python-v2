@@ -22,8 +22,8 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 SPREADSHEET_ID = '14WD-b9-91d_SEOITzqVZ6RqcMsAGIlTvEuNhkR7xM6w'
 
 def initGoogleApi():
-    # print cwd
-    print(os.getcwd())
+    global service
+    global sheets
     global credentials
     credentials = None
     if os.path.exists('token.json'):
@@ -36,6 +36,10 @@ def initGoogleApi():
             credentials = flow.run_local_server(port=0)
         with open('token.json', 'w') as token:
             token.write(credentials.to_json())
+            
+    
+    service = build("sheets", "v4", credentials=credentials)
+    sheets = service.spreadsheets()
 
 # This sample uses the Message Broker for AWS IoT to send and receive messages
 # through an MQTT connection. On startup, the device connects to the server,
@@ -93,14 +97,13 @@ def on_message_received(topic, payload, dup, qos, retain, **kwargs):
         [ts,item_value_1,item_value_2]
     ]
     global received_count
+    global service
+    global sheets
     received_count += 1
     print('received_count:', received_count)
     if ((received_count - 1) % 6) == 0: # update sheet every 60 seconds
         print('write to google sheet')
-        try:
-            service = build("sheets", "v4", credentials=credentials)
-            sheets = service.spreadsheets()
-            
+        try:            
             # get highest row number
             result = sheets.values().get(spreadsheetId=SPREADSHEET_ID, range='Sheet1!A1:A').execute()
             sheetValues = result.get('values', [])
