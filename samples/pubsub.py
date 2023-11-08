@@ -13,6 +13,7 @@ import os
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -20,22 +21,14 @@ from googleapiclient.errors import HttpError
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 # url: https://docs.google.com/spreadsheets/d/14WD-b9-91d_SEOITzqVZ6RqcMsAGIlTvEuNhkR7xM6w/edit#gid=0
 SPREADSHEET_ID = '14WD-b9-91d_SEOITzqVZ6RqcMsAGIlTvEuNhkR7xM6w'
+SERVICE_ACCOUNT_FILE = 'service_account.json'
 
 def initGoogleApi():
     global service
     global sheets
     global credentials
-    credentials = None
-    if os.path.exists('token.json'):
-        credentials = Credentials.from_authorized_user_file('token.json', SCOPES)
-    if not credentials or not credentials.valid:
-        if credentials and credentials.expired and credentials.refresh_token:
-            credentials.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            credentials = flow.run_local_server(port=0)
-        with open('token.json', 'w') as token:
-            token.write(credentials.to_json())
+    credentials = service_account.Credentials.from_service_account_file(
+        SERVICE_ACCOUNT_FILE, scopes=SCOPES)
             
     
     service = build("sheets", "v4", credentials=credentials)
